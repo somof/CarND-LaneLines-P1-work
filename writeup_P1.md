@@ -36,6 +36,25 @@ here is how to include an image:
 
 RGB
 
+コンセプト
+確実な候補を残す
+欠けた部分を補間する
+
+
+Experimental Rule for line detection
+- 白線は白か黄色 -> GrayScaleには RとGのみ使う
+- 正常な運転の最中は、白線があるべき位置はおよそ決まる -> マスク領域でフィルタする
+- 正常な運転の最中は、白線の画面上の取りうる角度には範囲がある -> Hough変換で検出した線分をフィルタする
+
+Experimental Rule for solid-line detection
+ prediction
+かいき
+revolution/recurrence/recursio
+logistic
+ゆるい曲線
+自車の移動や他車で隠される以外の理由で、白線が突然消えたりしない
+突然
+
 
 
 まず、検証用の画像を用意
