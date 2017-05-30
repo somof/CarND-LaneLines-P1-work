@@ -1,6 +1,7 @@
 
 # importing some useful packages
 import os
+import glob
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
@@ -23,7 +24,11 @@ def grayscale(img):
     but NOTE: to see the returned image as grayscale
     (assuming your grayscaled image is called 'gray')
     you should call plt.imshow(gray, cmap='gray')"""
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    
+    RGB = cv2.split(img)
+    return cv2.addWeighted(RGB[0], 0.5, RGB[1], 0.5, 0.0)
+
+    # return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     # Or use BGR2GRAY if you read an image with cv2.imread()
     # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -81,9 +86,23 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
     If you want to make the lines semi-transparent, think about combining
     this function with the weighted_img() function below
     """
-    for line in lines:
-        for x1, y1, x2, y2 in line:
-            cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+    if lines is not None:
+        # print(len(lines))
+        for line in lines:
+            for x1, y1, x2, y2 in line:
+
+                length = math.hypot(x1 - x2, y1 - y2)
+                theta = math.atan2((y1 - y2), (x1 - x2))
+                degree = math.degrees(theta)
+                # print(theta, degree, length)
+
+                if 5 < length and \
+                  ((0.25*math.pi < theta and theta < 1.*math.pi) or
+                   (-0.25*math.pi > theta and theta > -1.*math.pi)):
+                    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
+                    # cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
 
 
 def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
@@ -93,6 +112,7 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     Returns an image with hough lines drawn.
     """
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
+
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     draw_lines(line_img, lines)
     return line_img
@@ -140,40 +160,52 @@ def process_image(image):
     # TODO: put your pipeline here,
     # you should return the final output (image where lines are drawn on lanes)
 
-    # Step1: GrayScale
-    gray = grayscale(image)
+    normalized_image = cv2.resize(image, (1000, 500))
+    # print(normalized_image.shape)
+
+    # Step1: create GrayScale and normalize size
+    gray = grayscale(normalized_image)
+
+
 
     # Step2: Edge Detection
     blur_gray = gaussian_blur(gray, 5)
-    edges = canny(blur_gray, 50, 150)
+    # edges = canny(blur_gray, 50, 150)
+    edges = canny(blur_gray, 0, 150)
 
     # Step3: Mask
-    imshape = image.shape
-    vertices = np.array([[(50, imshape[0]),
-                        (430, 300),  # (imshape[1], 0),
-                        (530, 300),
-                        (900, imshape[0])]],  # (imshape[1],imshape[0])]],
+    #imshape = image.shape
+    imshape = normalized_image.shape
+    vertices = np.array([[(100, 500),
+                          (430, 300),
+                          (570, 300),
+                          (950, 500),
+                          (800, 500),
+                          (530, 320),
+                          (470, 320),
+                          (250, 500)]],
                         dtype=np.int32)
     masked_image = region_of_interest(edges, vertices)
 
     # Step4: Hough-transformation
     line_image = hough_lines(masked_image,
-                             rho=12,  # 1 # distance resolution in pixels of the Hough grid
-                             theta=np.pi / 120,  # 180 # angular resolution in radians of the Hough grid
-                             threshold=200,     # minimum number of votes (intersections in Hough grid cell)
-                             min_line_len=3,  # 5 #minimum number of pixels making up a line
-                             max_line_gap=100)  # 1 # maximum gap in pixels between connectable line segments
+                             rho=10,            # 1 # distance resolution in pixels of the Hough grid
+                             theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
+                             threshold=30,      # minimum number of votes (intersections in Hough grid cell)
+                             min_line_len=3,    # 5 #minimum number of pixels making up a line
+                             max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
 
     # Step: 
-
-
 
     # StepX: Overlay
 
     # Create a "color" binary image to combine with line image
     color_edges = np.dstack((edges, edges, edges))
-    # result = weighted_img(line_image, color_edges, α=0.8, β=1., λ=0.)
-    result = weighted_img(line_image, image, α=0.8, β=1., λ=0.)
+    result = weighted_img(line_image, color_edges, α=0.8, β=1., λ=0.)
+    # result = weighted_img(line_image, image, α=0.8, β=1., λ=0.)
+    # result = weighted_img(line_image, normalized_image, α=0.8, β=1., λ=0.)
+    # colored_gray = np.dstack((blur_gray, blur_gray, blur_gray))
+    # result = weighted_img(line_image, colored_gray, α=0.8, β=1., λ=0.)
 
     return result
 
@@ -182,18 +214,21 @@ def process_image(image):
 # Build your pipeline to work on the images in the directory "test_images"
 # You should make sure your pipeline works well on these images before you try the videos.
 files = os.listdir("test_images/")
+files = glob.glob("test_images/challenge*.jpg")
+files = glob.glob("test_images/*.jpg")
 
 fig = plt.figure()
 ims = []
 for file in files:
-    image = mpimg.imread('test_images/' + file)
+    # image = mpimg.imread('test_images/' + file)
+    image = mpimg.imread(file)
     im = plt.imshow(process_image(image))
     ims.append([im])
 
-ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True, repeat_delay=0)
+ani = animation.ArtistAnimation(fig, ims, interval=400, blit=True, repeat_delay=0)
 # ani.save('dynamic_images.mp4')
 plt.show()
-#exit(0)
+exit(0)
 
 
 
