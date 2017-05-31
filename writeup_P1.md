@@ -38,7 +38,7 @@ If you'd like to include images to show how the pipeline works,
 here is how to include an image: 
 
 
-![alt text][image1]
+![scope in image][scope]
 
 
 
