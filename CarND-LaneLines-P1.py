@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
 import numpy as np
+import scipy as sc
+from scipy import stats
 import cv2
 
 import math
@@ -90,19 +92,7 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
         # print(len(lines))
         for line in lines:
             for x1, y1, x2, y2 in line:
-
-                length = math.hypot(x1 - x2, y1 - y2)
-                theta = math.atan2((y1 - y2), (x1 - x2))
-                degree = math.degrees(theta)
-                # print(theta, degree, length)
-
-                if 5 < length and \
-                  ((0.25*math.pi < theta and theta < 1.*math.pi) or
-                   (-0.25*math.pi > theta and theta > -1.*math.pi)):
-                    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
-
-                    # cv2.line(img, (x1, y1), (x2, y2), color, thickness)
-
+                cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
 
 def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
@@ -113,9 +103,43 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     """
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
 
+    left_points = []
+    right_points = []
+    filtered_lines = []
+    if lines is not None:
+        # print(len(lines))
+        for line in lines:
+            for x1, y1, x2, y2 in line:
+                length = math.hypot(x2 - x1, y2 - y1)
+                theta = math.atan2((y2 - y1), (x2 - x1))
+                degree = math.degrees(theta)
+                # print(theta, degree, length)
+                if 5 < length and  0.05*math.pi < theta and theta <  0.45*math.pi:
+                    filtered_lines.append([[x1, y1, x2, y2]])
+                    left_points.extend(devide_points(x1, y1, x2, y2))
+
+                if 5 < length and -0.45*math.pi < theta and theta < -0.05*math.pi:
+                    filtered_lines.append([[x1, y1, x2, y2]])
+                    right_points.extend(devide_points(x1, y1, x2, y2))
+
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-    draw_lines(line_img, lines)
-    return line_img
+    draw_lines(line_img, filtered_lines)
+
+    # draw angle scale
+    radial = 200
+    for unit in (0.1, 0.2, 0.3, 0.4):
+        rad = math.pi * unit
+        cx = 500
+        cy = 300
+        x = int(math.sin(-rad) * radial + cx)
+        y = int(math.cos(-rad) * radial + cy)
+        cv2.line(line_img, (cx, cy), (x, y), [255, 0, 255], 1)
+        cx = 550
+        x = int(math.sin(rad) * radial + cx)
+        y = int(math.cos(rad) * radial + cy)
+        cv2.line(line_img, (cx, cy), (x, y), [0, 255, 255], 1)
+
+    return line_img, left_points, right_points
 
 # Python 3 has support for cool math symbols.
 
@@ -155,6 +179,35 @@ def weighted_img(img, initial_img, α=0.8, β=1.0, λ=0.0):
 # then save them to the test_images directory.
 
 
+def devide_points(x1, y1, x2, y2):
+    length = math.hypot(x2 - x1, y2 - y1)
+    num = int(math.sqrt(length))
+    lines = []
+    for i in range(0, num):
+        lines.append([x1 + i * (x2 - x1) / num,
+                      y1 + i * (y2 - y1) / num])
+    return lines
+
+
+def regression_line(img, left_points, color, thickness):
+
+    # transform point list
+    x = []
+    y = []
+
+
+    slope, intercept, r_value, _, _ = stats.linregress(x, y)
+
+    line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+    draw_lines(line_img, filtered_lines)
+
+    func = lambda x: x * slope + intercept
+    line = lines.Line2D([0, 50], [func(0), func(50)])
+    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
+    return line_img
+
+
 def process_image(image):
     # NOTE: The output you return should be a color image (3 channel) for processing video below
     # TODO: put your pipeline here,
@@ -188,34 +241,46 @@ def process_image(image):
     masked_image = region_of_interest(edges, vertices)
 
     # Step4: Hough-transformation
-    line_image = hough_lines(masked_image,
+    line_image, left_points, right_points = hough_lines(masked_image,
                              rho=10,            # 1 # distance resolution in pixels of the Hough grid
                              theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
                              threshold=30,      # minimum number of votes (intersections in Hough grid cell)
                              min_line_len=3,    # 5 #minimum number of pixels making up a line
                              max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
 
-    # Step: 
+    # Step: devide lines into points
+    
+    line_image = regression_line(masked_image, left_points, [255, 0, 0], 8)
+    print(left_points)
+    # exit(0)
 
     # StepX: Overlay
 
     # Create a "color" binary image to combine with line image
-    color_edges = np.dstack((edges, edges, edges))
-    result = weighted_img(line_image, color_edges, α=0.8, β=1., λ=0.)
+    # color_edges = np.dstack((edges, edges, edges))
+    # result = weighted_img(line_image, color_edges, α=0.8, β=1., λ=0.)
     # result = weighted_img(line_image, image, α=0.8, β=1., λ=0.)
-    # result = weighted_img(line_image, normalized_image, α=0.8, β=1., λ=0.)
+    result = weighted_img(line_image, normalized_image, α=0.8, β=1., λ=0.)
     # colored_gray = np.dstack((blur_gray, blur_gray, blur_gray))
     # result = weighted_img(line_image, colored_gray, α=0.8, β=1., λ=0.)
 
     return result
 
 
+# Fusibility Test
+# files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg']
+# for file in files:
+#     image = mpimg.imread('test_images/' + file)
+#     im = plt.imshow(process_image(image))
+#     plt.savefig('test_images_output/tmp_' + file, pad_inches=0.0)
+# exit(0)
+
 # Test Images
 # Build your pipeline to work on the images in the directory "test_images"
 # You should make sure your pipeline works well on these images before you try the videos.
 files = os.listdir("test_images/")
-files = glob.glob("test_images/challenge*.jpg")
 files = glob.glob("test_images/*.jpg")
+files = glob.glob("test_images/challenge*.jpg")
 
 fig = plt.figure()
 ims = []
@@ -225,7 +290,7 @@ for file in files:
     im = plt.imshow(process_image(image))
     ims.append([im])
 
-ani = animation.ArtistAnimation(fig, ims, interval=400, blit=True, repeat_delay=0)
+ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat_delay=0)
 # ani.save('dynamic_images.mp4')
 plt.show()
 exit(0)
