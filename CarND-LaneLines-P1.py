@@ -1,15 +1,16 @@
 
 # importing some useful packages
 import os
-import glob
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
 import numpy as np
-import scipy as sc
-from scipy import stats
 import cv2
 
+import glob
+import scipy as sc
+from scipy import stats
+from sklearn import linear_model, datasets
 import math
 
 # Import everything needed to edit/save/watch video clips
@@ -116,28 +117,28 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
                 # print(theta, degree, length)
                 if 5 < length and  0.05*math.pi < theta and theta <  0.45*math.pi:
                     filtered_lines.append([[x1, y1, x2, y2]])
-                    left_points.extend(devide_points(x1, y1, x2, y2))
+                    right_points.extend(devide_points(x1, y1, x2, y2))
 
                 if 5 < length and -0.45*math.pi < theta and theta < -0.05*math.pi:
                     filtered_lines.append([[x1, y1, x2, y2]])
-                    right_points.extend(devide_points(x1, y1, x2, y2))
+                    left_points.extend(devide_points(x1, y1, x2, y2))
 
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     draw_lines(line_img, filtered_lines)
 
     # draw angle scale
-    radial = 200
-    for unit in (0.1, 0.2, 0.3, 0.4):
-        rad = math.pi * unit
-        cx = 500
-        cy = 300
-        x = int(math.sin(-rad) * radial + cx)
-        y = int(math.cos(-rad) * radial + cy)
-        cv2.line(line_img, (cx, cy), (x, y), [255, 0, 255], 1)
-        cx = 550
-        x = int(math.sin(rad) * radial + cx)
-        y = int(math.cos(rad) * radial + cy)
-        cv2.line(line_img, (cx, cy), (x, y), [0, 255, 255], 1)
+    # radial = 200
+    # for unit in (0.1, 0.2, 0.3, 0.4):
+    #     rad = math.pi * unit
+    #     cx = 500
+    #     cy = 300
+    #     x = int(math.sin(-rad) * radial + cx)
+    #     y = int(math.cos(-rad) * radial + cy)
+    #     cv2.line(line_img, (cx, cy), (x, y), [255, 0, 255], 1)
+    #     cx = 550
+    #     x = int(math.sin(rad) * radial + cx)
+    #     y = int(math.cos(rad) * radial + cy)
+    #     cv2.line(line_img, (cx, cy), (x, y), [0, 255, 255], 1)
 
     return line_img, left_points, right_points
 
@@ -189,26 +190,52 @@ def devide_points(x1, y1, x2, y2):
     return lines
 
 
-def regression_line(img, left_points, color, thickness):
+def regression_line(img, points, hrange, color, thickness):
 
     # transform point list
-    x = []
-    y = []
+    x = [d[0] for d in points]
+    y = [d[1] for d in points]
+
+    # Linear regressor
+    # slope, intercept, r_value, _, _ = stats.linregress(x, y)
+    # # func = lambda x: x * slope + intercept
+    # func = lambda y: int((y - intercept) / slope)
+    # cv2.line(img, (func(500), 500), (func(300), 300), color, thickness)
+
+    if 30 < len(x):
+        # RANSAC regressor
+        model_ransac = linear_model.RANSACRegressor(linear_model.LinearRegression(),
+                                                    min_samples=24,
+                                                    residual_threshold=15,
+                                                    # is_data_valid=is_data_valid,
+                                                    # random_state=0
+                                                    )
+        if model_ransac is not None:
+            X = np.array(x)
+            # X = x[:, np.newaxis]
+            model_ransac.fit(X[:, np.newaxis], y)
+            # inlier_mask = model_ransac.inlier_mask_
+            # outlier_mask = np.logical_not(inlier_mask)
+        
+            # line_x = np.arange(100, 401, 300)
+            line_x = np.arange(hrange[0], hrange[1], hrange[1] - hrange[0] - 1)
+            line_y = model_ransac.predict(line_x[:, np.newaxis])
+            # print(line_x)
+            # print(line_y)
+        
+        
+            # func = lambda x: x * slope + intercept
+            # cv2.line(img,
+            #          (int(line_x[0]), int(line_y[0])),
+            #          (int(line_x[1]), int(line_y[1])),
+            #          color, thickness)
+
+            return img, (int(line_x[0]), int(line_y[0])), (int(line_x[1]), int(line_y[1]))
+
+    return img, [0, 0], [0, 0]
 
 
-    slope, intercept, r_value, _, _ = stats.linregress(x, y)
-
-    line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-    draw_lines(line_img, filtered_lines)
-
-    func = lambda x: x * slope + intercept
-    line = lines.Line2D([0, 50], [func(0), func(50)])
-    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
-
-    return line_img
-
-
-def process_image(image):
+def process_image(image, weight=0.2):
     # NOTE: The output you return should be a color image (3 channel) for processing video below
     # TODO: put your pipeline here,
     # you should return the final output (image where lines are drawn on lanes)
@@ -242,17 +269,39 @@ def process_image(image):
 
     # Step4: Hough-transformation
     line_image, left_points, right_points = hough_lines(masked_image,
-                             rho=10,            # 1 # distance resolution in pixels of the Hough grid
-                             theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
-                             threshold=30,      # minimum number of votes (intersections in Hough grid cell)
-                             min_line_len=3,    # 5 #minimum number of pixels making up a line
-                             max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
+                                                        rho=10,            # 1 # distance resolution in pixels of the Hough grid
+                                                        theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
+                                                        threshold=30,      # minimum number of votes (intersections in Hough grid cell)
+                                                        min_line_len=3,    # 5 #minimum number of pixels making up a line
+                                                        max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
 
     # Step: devide lines into points
     
-    line_image = regression_line(masked_image, left_points, [255, 0, 0], 8)
-    print(left_points)
-    # exit(0)
+    line_image, lp0, lp1 = regression_line(line_image, left_points,  [100, 451], [255, 200, 0], 8)
+    line_image, rp0, rp1 = regression_line(line_image, right_points, [550, 901], [200, 255, 0], 8)
+
+    # step:
+    global lsp0, lsp1, rsp0, rsp1
+    if lsp0[0] == 0 and lsp0[1] == 0:
+        lsp0 = list(lp0)
+    if rsp0[0] == 0 and rsp0[1] == 0:
+        rsp0 = list(rp0)
+    if lsp1[0] == 0 and lsp1[1] == 0:
+        lsp1 = list(lp1)
+    if rsp1[0] == 0 and rsp1[1] == 0:
+        rsp1 = list(rp1)
+
+    if lp0[0] != 0 or lp0[1] != 0:
+        lsp0[0] = weight * lsp0[0] + (1.0 - weight) * lp0[0]
+        lsp0[1] = weight * lsp0[1] + (1.0 - weight) * lp0[1]
+    if rp0[0] != 0 or rp0[1] != 0:
+        rsp0[0] = weight * rsp0[0] + (1.0 - weight) * rp0[0]
+        rsp0[1] = weight * rsp0[1] + (1.0 - weight) * rp0[1]
+
+    if 0 < weight:
+        cv2.line(line_image, (int(lsp0[0]), int(lsp0[1])), (int(lsp1[0]), int(lsp1[1])), [200, 100, 150], 20)
+        cv2.line(line_image, (int(rsp0[0]), int(rsp0[1])), (int(rsp1[0]), int(rsp1[1])), [200, 100, 150], 20)
+
 
     # StepX: Overlay
 
@@ -268,22 +317,32 @@ def process_image(image):
 
 
 # Fusibility Test
-# files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg']
-# for file in files:
-#     image = mpimg.imread('test_images/' + file)
-#     im = plt.imshow(process_image(image))
-#     plt.savefig('test_images_output/tmp_' + file, pad_inches=0.0)
-# exit(0)
+files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg']
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
+for file in files:
+    image = mpimg.imread('test_images/' + file)
+    im = plt.imshow(process_image(image, weight=0.0))
+    plt.savefig('test_images_output/tmp_' + file, pad_inches=0.0)
+exit(0)
 
 # Test Images
 # Build your pipeline to work on the images in the directory "test_images"
 # You should make sure your pipeline works well on these images before you try the videos.
 files = os.listdir("test_images/")
-files = glob.glob("test_images/*.jpg")
 files = glob.glob("test_images/challenge*.jpg")
+files = glob.glob("test_images/*.jpg")
 
 fig = plt.figure()
 ims = []
+
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
+
 for file in files:
     # image = mpimg.imread('test_images/' + file)
     image = mpimg.imread(file)
@@ -303,18 +362,30 @@ exit(0)
 #  You may also uncomment the following line for a subclip of the first 5 seconds
 # clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
 
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
 white_output = 'test_videos_output/solidWhiteRight.mp4'
 clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
 white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
 white_clip.write_videofile(white_output, audio=False)
 
 
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
 white_output = 'test_videos_output/solidYellowLeft.mp4'
 clip1 = VideoFileClip("test_videos/solidYellowLeft.mp4")
 white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
 white_clip.write_videofile(white_output, audio=False)
 
 
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
 white_output = 'test_videos_output/challenge.mp4'
 clip1 = VideoFileClip("test_videos/challenge.mp4")
 white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
