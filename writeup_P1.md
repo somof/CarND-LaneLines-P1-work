@@ -23,7 +23,10 @@ The goals / steps of this project are the following:
 
 ### 1. Describe your pipeline. As part of the description, explain how you modified the draw_lines() function.
 
+
+Concept is 
 My pipeline consisted of 5 steps. 
+
 First, I converted the images to grayscale, then I .... 
 
 In order to draw a single line on the left and right lanes,
@@ -32,6 +35,9 @@ In order to draw a single line on the left and right lanes,
 If you'd like to include images to show how the pipeline works, 
 here is how to include an image: 
 
+
+
+[scope]: ./figure/scope.png "Scope of line-detection"
 
 
 RGB
