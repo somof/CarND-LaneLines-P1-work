@@ -27,13 +27,12 @@ def grayscale(img):
     but NOTE: to see the returned image as grayscale
     (assuming your grayscaled image is called 'gray')
     you should call plt.imshow(gray, cmap='gray')"""
-
-    # Lines to detect are colored with White or Yellow
-    # RGB = cv2.split(img)
-    # return RGB[0]
+    
+    RGB = cv2.split(img)
+    return RGB[0]
     # return cv2.addWeighted(RGB[0], 0.5, RGB[1], 0.5, 0.0)
 
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    # return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     # Or use BGR2GRAY if you read an image with cv2.imread()
     # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -92,7 +91,6 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
     this function with the weighted_img() function below
     """
     if lines is not None:
-        # print(len(lines))
         for line in lines:
             for x1, y1, x2, y2 in line:
                 cv2.line(img, (x1, y1), (x2, y2), color, thickness)
@@ -206,21 +204,36 @@ def regression_line(img, points, hrange, color, thickness):
         # RANSAC regressor
         model_ransac = linear_model.RANSACRegressor(linear_model.LinearRegression(),
                                                     min_samples=24,
-                                                    residual_threshold=25,
+                                                    residual_threshold=15,
                                                     # is_data_valid=is_data_valid,
                                                     # random_state=0
                                                     )
         if model_ransac is not None:
             X = np.array(x)
+            # X = x[:, np.newaxis]
             model_ransac.fit(X[:, np.newaxis], y)
+            # inlier_mask = model_ransac.inlier_mask_
+            # outlier_mask = np.logical_not(inlier_mask)
+        
+            # line_x = np.arange(100, 401, 300)
             line_x = np.arange(hrange[0], hrange[1], hrange[1] - hrange[0] - 1)
             line_y = model_ransac.predict(line_x[:, np.newaxis])
+            # print(line_x)
+            # print(line_y)
+        
+        
+            # func = lambda x: x * slope + intercept
+            # cv2.line(img,
+            #          (int(line_x[0]), int(line_y[0])),
+            #          (int(line_x[1]), int(line_y[1])),
+            #          color, thickness)
+
             return img, (int(line_x[0]), int(line_y[0])), (int(line_x[1]), int(line_y[1]))
 
     return img, [0, 0], [0, 0]
 
 
-def process_image(image, weight=0.5):
+def process_image(image, weight=0.2):
     # NOTE: The output you return should be a color image (3 channel) for processing video below
     # TODO: put your pipeline here,
     # you should return the final output (image where lines are drawn on lanes)
@@ -245,12 +258,15 @@ def process_image(image, weight=0.5):
 
     # Step1: create GrayScale and normalize size
     gray = grayscale(normalized_image)
-
+    # RGB = cv2.split(image)
+    # gray = RGB[0]
+    # gray_image= np.dstack((gray, gray, gray))
+    # return gray_image
 
 
     # Step2: Edge Detection
     blur_gray = gaussian_blur(gray, 5)
-    edges = canny(blur_gray, 100, 200)
+    edges = canny(blur_gray, 0, 150)
 
     # Step3: Mask
     masked_image = region_of_interest(edges, scope)
@@ -263,39 +279,34 @@ def process_image(image, weight=0.5):
                                                         min_line_len=3,    # 5 #minimum number of pixels making up a line
                                                         max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
 
-    # Step5: devide lines into points
-    line_image, left_p0, left_p1 = regression_line(line_image, left_points,  [100, 451], [255, 200, 0], 8)
-    line_image, right_p0, right_p1 = regression_line(line_image, right_points, [550, 901], [200, 255, 0], 8)
+    # Step5: Linear regression
+    line_image, lp0, lp1 = regression_line(line_image, left_points,  [100, 451], [255, 200, 0], 8)
+    line_image, rp0, rp1 = regression_line(line_image, right_points, [550, 901], [200, 255, 0], 8)
 
     # step6: Infinite Impulse Response filter
-    global left_sp0, left_sp1, right_sp0, right_sp1
-    if left_sp0[0] == 0 and left_sp0[1] == 0:
-        left_sp0 = list(left_p0)
-    if right_sp0[0] == 0 and right_sp0[1] == 0:
-        right_sp0 = list(right_p0)
-    if left_sp1[0] == 0 and left_sp1[1] == 0:
-        left_sp1 = list(left_p1)
-    if right_sp1[0] == 0 and right_sp1[1] == 0:
-        right_sp1 = list(right_p1)
+    global lsp0, lsp1, rsp0, rsp1
+    if lsp0[0] == 0 and lsp0[1] == 0:
+        lsp0 = list(lp0)
+    if rsp0[0] == 0 and rsp0[1] == 0:
+        rsp0 = list(rp0)
+    if lsp1[0] == 0 and lsp1[1] == 0:
+        lsp1 = list(lp1)
+    if rsp1[0] == 0 and rsp1[1] == 0:
+        rsp1 = list(rp1)
 
-    if left_p0[0] != 0 or left_p0[1] != 0 or left_p1[0] != 0 or left_p1[1] != 0:
-        left_sp0[0] = weight * left_sp0[0] + (1.0 - weight) * left_p0[0]
-        left_sp0[1] = weight * left_sp0[1] + (1.0 - weight) * left_p0[1]
-        left_sp1[0] = weight * left_sp1[0] + (1.0 - weight) * left_p1[0]
-        left_sp1[1] = weight * left_sp1[1] + (1.0 - weight) * left_p1[1]
-
-    if right_p0[0] != 0 or right_p0[1] != 0 or right_p1[0] != 0 or right_p1[1] != 0:
-        right_sp0[0] = weight * right_sp0[0] + (1.0 - weight) * right_p0[0]
-        right_sp0[1] = weight * right_sp0[1] + (1.0 - weight) * right_p0[1]
-        right_sp1[0] = weight * right_sp1[0] + (1.0 - weight) * right_p1[0]
-        right_sp1[1] = weight * right_sp1[1] + (1.0 - weight) * right_p1[1]
+    if lp0[0] != 0 or lp0[1] != 0:
+        lsp0[0] = weight * lsp0[0] + (1.0 - weight) * lp0[0]
+        lsp0[1] = weight * lsp0[1] + (1.0 - weight) * lp0[1]
+    if rp0[0] != 0 or rp0[1] != 0:
+        rsp0[0] = weight * rsp0[0] + (1.0 - weight) * rp0[0]
+        rsp0[1] = weight * rsp0[1] + (1.0 - weight) * rp0[1]
 
     if 0 < weight:
-        cv2.line(line_image, (int(left_sp0[0]), int(left_sp0[1])), (int(left_sp1[0]), int(left_sp1[1])), [200, 100, 150], 20)
-        cv2.line(line_image, (int(right_sp0[0]), int(right_sp0[1])), (int(right_sp1[0]), int(right_sp1[1])), [200, 100, 150], 20)
+        cv2.line(line_image, (int(lsp0[0]), int(lsp0[1])), (int(lsp1[0]), int(lsp1[1])), [200, 100, 150], 20)
+        cv2.line(line_image, (int(rsp0[0]), int(rsp0[1])), (int(rsp1[0]), int(rsp1[1])), [200, 100, 150], 20)
 
 
-    # Step7: Overlay image
+    # StepX: Overlay
 
     # Create a "color" binary image to combine with line image
     # color_edges = np.dstack((edges, edges, edges))
@@ -310,10 +321,10 @@ def process_image(image, weight=0.5):
 
 # Fusibility Test
 # files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg']
-# left_sp0 = [0, 0]
-# left_sp1 = [0, 0]
-# right_sp0 = [0, 0]
-# right_sp1 = [0, 0]
+# lsp0 = [0, 0]
+# lsp1 = [0, 0]
+# rsp0 = [0, 0]
+# rsp1 = [0, 0]
 # for file in files:
 #     image = mpimg.imread('test_images/' + file)
 #     im = plt.imshow(process_image(image, weight=0.0))
@@ -326,59 +337,24 @@ def process_image(image, weight=0.5):
 files = os.listdir("test_images/")
 files = glob.glob("test_images/challenge*.jpg")
 files = glob.glob("test_images/*.jpg")
+files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg', 'challenge_000001.jpg', 'challenge_000010.jpg', 'challenge_000020.jpg', 'solidWhiteRight_000001.jpg', 'solidWhiteRight_000010.jpg', 'solidWhiteRight_000019.jpg', 'solidYellowLeft_000001.jpg', 'solidYellowLeft_000010.jpg', 'solidYellowLeft_000020.jpg', 'solidYellowLeft_000030.jpg', 'solidYellowLeft_000040.jpg', 'solidYellowLeft_000050.jpg']
+
+files = ['solidYellowCurve2.jpg']
 
 fig = plt.figure()
 ims = []
 
-left_sp0 = [0, 0]
-left_sp1 = [0, 0]
-right_sp0 = [0, 0]
-right_sp1 = [0, 0]
+lsp0 = [0, 0]
+lsp1 = [0, 0]
+rsp0 = [0, 0]
+rsp1 = [0, 0]
 
 for file in files:
-    # image = mpimg.imread('test_images/' + file)
-    image = mpimg.imread(file)
+    image = mpimg.imread('test_images/' + file)
+    # image = mpimg.imread(file)
     im = plt.imshow(process_image(image))
     ims.append([im])
 
 ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat_delay=0)
 # ani.save('dynamic_images.mp4')
 plt.show()
-exit(0)
-
-
-
-#  To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
-#  To do so add .subclip(start_second,end_second) to the end of the line below
-#  Where start_second and end_second are integer values representing the start and end of the subclip
-#  You may also uncomment the following line for a subclip of the first 5 seconds
-# clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
-
-left_sp0 = [0, 0]
-left_sp1 = [0, 0]
-right_sp0 = [0, 0]
-right_sp1 = [0, 0]
-white_output = 'test_videos_output/solidWhiteRight.mp4'
-clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
-white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)
-
-
-left_sp0 = [0, 0]
-left_sp1 = [0, 0]
-right_sp0 = [0, 0]
-right_sp1 = [0, 0]
-white_output = 'test_videos_output/solidYellowLeft.mp4'
-clip1 = VideoFileClip("test_videos/solidYellowLeft.mp4")
-white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)
-
-
-left_sp0 = [0, 0]
-left_sp1 = [0, 0]
-right_sp0 = [0, 0]
-right_sp1 = [0, 0]
-white_output = 'test_videos_output/challenge.mp4'
-clip1 = VideoFileClip("test_videos/challenge.mp4")
-white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)

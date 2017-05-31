@@ -7,6 +7,7 @@ PYTHON = ../../../src/miniconda3/envs/carnd-term1/bin/python
 endif
 
 all:
+#	$(PYTHON) CarND-LaneLines-scope.py
 	$(PYTHON) CarND-LaneLines-P1.py
 
 extract:
