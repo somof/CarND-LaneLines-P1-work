@@ -15,6 +15,8 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
+[scope]: ./figure/scope.png "Scope of line-detection"
+
 [image1]: ./examples/grayscale.jpg "Grayscale"
 
 ---
@@ -36,8 +38,8 @@ If you'd like to include images to show how the pipeline works,
 here is how to include an image: 
 
 
+![alt text][image1]
 
-[scope]: ./figure/scope.png "Scope of line-detection"
 
 
 RGB
