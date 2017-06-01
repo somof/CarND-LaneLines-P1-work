@@ -7,8 +7,8 @@ PYTHON = ../../../src/miniconda3/envs/carnd-term1/bin/python
 endif
 
 all:
-#	$(PYTHON) CarND-LaneLines-scope.py
-	$(PYTHON) CarND-LaneLines-P1.py
+	$(PYTHON) CarND-LaneLines-scope.py
+#	$(PYTHON) CarND-LaneLines-P1.py
 
 extract:
 	ffmpeg -i test_videos/challenge.mp4       -r 2 -f image2 test_images/challenge_%06d.jpg

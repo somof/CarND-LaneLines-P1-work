@@ -27,8 +27,7 @@ def grayscale(img):
     but NOTE: to see the returned image as grayscale
     (assuming your grayscaled image is called 'gray')
     you should call plt.imshow(gray, cmap='gray')"""
-
-    # Lines to detect are colored with White or Yellow
+    
     # RGB = cv2.split(img)
     # return RGB[0]
     # return cv2.addWeighted(RGB[0], 0.5, RGB[1], 0.5, 0.0)
@@ -92,7 +91,6 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
     this function with the weighted_img() function below
     """
     if lines is not None:
-        # print(len(lines))
         for line in lines:
             for x1, y1, x2, y2 in line:
                 cv2.line(img, (x1, y1), (x2, y2), color, thickness)
@@ -241,11 +239,35 @@ def process_image(image, weight=0.5):
     # scope = scope.reshape((-1,1,2))
     # img = cv2.polylines(normalized_image, [scope], True, (0,255,255))
     # return img
+    left_scope = np.array([[(100, 500),
+                       (430, 300),
+                       (570, 300),
+                       (970, 500),
+                       (800, 500),
+                       (520, 320),
+                       (490, 320),
+                       (250, 500)]],
+                       dtype=np.int32)
+    left_scope = scope.reshape((-1,1,2))
+    right_scope = np.array([[(100, 500),
+                       (430, 300),
+                       (570, 300),
+                       (970, 500),
+                       (800, 500),
+                       (520, 320),
+                       (490, 320),
+                       (250, 500)]],
+                       dtype=np.int32)
+    right_scope = scope.reshape((-1,1,2))
+    img = cv2.polylines(normalized_image, [left_scope], True, (0,255,255))
+    img = cv2.polylines(normalized_image, [right_scope], True, (0,255,255))
+    return img
 
 
     # Step1: create GrayScale and normalize size
     gray = grayscale(normalized_image)
-
+    colored_gray = np.dstack((gray, gray, gray))
+    return colored_gray
 
 
     # Step2: Edge Detection
@@ -324,8 +346,8 @@ def process_image(image, weight=0.5):
 # Build your pipeline to work on the images in the directory "test_images"
 # You should make sure your pipeline works well on these images before you try the videos.
 files = os.listdir("test_images/")
-files = glob.glob("test_images/challenge*.jpg")
 files = glob.glob("test_images/*.jpg")
+files = glob.glob("test_images/challenge*.jpg")
 
 fig = plt.figure()
 ims = []
@@ -338,10 +360,10 @@ right_sp1 = [0, 0]
 for file in files:
     # image = mpimg.imread('test_images/' + file)
     image = mpimg.imread(file)
-    im = plt.imshow(process_image(image))
+    im = plt.imshow(process_image(image, weight=0.5))
     ims.append([im])
 
-ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat_delay=0)
+ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True, repeat_delay=0)
 # ani.save('dynamic_images.mp4')
 plt.show()
 exit(0)

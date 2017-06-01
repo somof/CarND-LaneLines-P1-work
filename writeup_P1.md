@@ -7,149 +7,107 @@
 [Gplane]: ./figure/G.png "G-plane image"
 [Bplane]: ./figure/B.png "B-plane image"
 [RGplane]: ./figure/RG.png "RG avarage image"
+[RGBplane]: ./figure/RGB.png "RG avarage image"
+[CannyEdges]: ./figure/edges.png "Canny Edge image"
+[Hough]: ./figure/hough_line_image.png "Hough-transformation image"
+[MaskedEdge]: ./figure/masked_edges.png "Masked edges image"
+[PredictedLines]: ./figure/predicted_line.png "Predicted lines"
+[PredictedLinesImage]: ./figure/predicted_line_image.png "Predicted lines image"
 
 ## Reflection
 
 ### 1. Concept
 
-Concept is Stability.
-Generally, output of edge-detection is very noisy,
-in spite of Lane-Detection for Automounous-Driving is based on it.
-
-So I 
-追記
-
-2-Phase
-1. careful selection of edge-candidates
-2. predict lines from them
+Generally edge-detection images are very noisy, consequently Hough-transformation with them have instability.
+My aim is improving the stability of line-detection with them.
 
 ### 2. Description of my pipeline
 
-My pipeline consisted of 5 steps. 
+My pipeline consisted of 6 steps. 
 
-Step0: Scope of line-detection
+#### Step1: normalize image size
+
+Image size are different for every target video images.
+As the first step, this pipeline unifies image-size as 1000x500.
+
+#### Step2: grayscale
+
+Target lines to detect are colored with White or Yellow in images.
+
+Blue-plane doesn't affect the line-detection algorithm.
+So grayscale is made from average of Red-plane and Green-plane.
+
+![(R+G)/2 image][RGplane]
+![COLOR_RGB2GRAY][RGBplane]
+
+### Step3: edge detection
+
+Similar to lessons, edge images are detected Canny-algorithm after bluring.
+
+![CannyEdges][CannyEdges]
+
+### Step4: Mask
+
+Left and right side masks are defined each other for post Linear-Regression step.
+
+Mask shapes are defined as pentagon based on positions where lines appear in 3 video images.
 
 ![scope in image][scope]
 
+![MaskedEdgeImage]][MaskedEdge]
 
-左右に分ける
-Hough変換も、ここから分ける
+### Step5: Hough-transformation
 
+Hough-transformation is executed twice for left and right line.
 
-Step1: create GrayScale and normalize size
+![HoughImage]][Hough]
 
-R or (R+G)/2
+### Step6: 2nd line-prediction
 
-実際のところ、
-このpipelineは cv2.COLOR_RGB2GRAY でも良く動作する
+To replace Hough-transformation results with two solid lines,
+this step breaks up lines into points and predicts a line again.
 
+In this step, RANSAC algorithm, has a strong stability toward noisy input, is applied to line-prediction.
 
-Step2: Edge Detection and Mask
+And plus, a IIR filter interpolates missing frame.
+This IIR also reinforce stability of the result of the line-prediction.
 
-adapt
-Gaussian_Blur and Canny-Edge detection
-as lesson
-
-Step3: Mask
-with Scope
-
-Step4: Hough-transformation
-
-adapt Hough-transformation with masked edge
-
-For post Linear-Regression process,
-detected lines are filtered again via with their angle
-
-Output remaining edge-candidates as two list of points
+![PredictedLines]][PredictedLines]
+![PredictedLinesImage]][PredictedLinesImage]
 
 
-Step5: Linear regression
-Predict two lines from the list of points
-with RANSAC algorithm.
+## 2. Identify potential shortcomings with your current pipeline
 
-Almost all of dashed-line would be identified as a solid-line.
+### line color issue
 
+This pipeline assume lines to detect are colored White or Yellow, 
+so in some country that uses blue lane-lines, it would not work well.
 
-step6: Infinite Impulse Response filter
+### heuristic filter issue
 
-Fill missing line-detections with previous line-detection's output.
+This pipeline uses some heuristic rule and filled many parameters, determined from only 3 videos.
 
+The parameters require to tune every time for new input video.
 
-Step7: Overlay image
+### stabilizing method
 
+This pipeline depends on some mathematical interpolation.
 
+They can cause troubles under unexpected situations like crossover points, occlusions or sharp curves.
 
+## 3. Suggest possible improvements to your pipeline
 
+A possible improvement would be to add free space detection method.
 
-RGB
-
-コンセプト
-確実な候補を残す
-欠けた部分を補間する
-
-
-Experimental Rule for line detection
-- 白線は白か黄色 -> GrayScaleには RとGのみ使う
-- 正常な運転の最中は、白線があるべき位置はおよそ決まる -> マスク領域でフィルタする
-- 正常な運転の最中は、白線の画面上の取りうる角度には範囲がある -> Hough変換で検出した線分をフィルタする
-
-Experimental Rule for solid-line detection
- prediction
-かいき
-revolution/recurrence/recursio
-logistic
-ゆるい曲線
-自車の移動や他車で隠される以外の理由で、白線が突然消えたりしない
-突然
+Line detection would be naive because edge points information may be few and noisy.
+Area sensing would be helpfull as its robustness.
 
 
+Another potential improvement could be to complete shape model of lane-line.
 
-まず、検証用の画像を用意
-課題のビデオ3種類から、0.5秒おきに、静止画を抽出
+At this challenge lane-line was assumed as solid-line, but actually they have some curvature factors.
+Exact line shape model would make line prediction method easy and precisive.
 
-画像大きさが異なるので、
-処理を解こす前に、大きさを正規化しておく
-
-黄色と白の車線なので
-RGのみでGRAY化
-
-
-前方の遠くのエッジが安定しないので除外
-
-
-
-確実なエッジを残す
-
-認識結果の数が減って、データの無い区間や時間が出来る分は
-時間方向の補完で解決する
-
-
-
-
-![alt text][image1]
-
-
-### 2. Identify potential shortcomings with your current pipeline
-
-
-One potential shortcoming would be what would happen when ... 
-
-Another shortcoming could be ...
-
-青い車線
-
-空想区間が
-
-交差点では使えない
-
-
-### 3. Suggest possible improvements to your pipeline
-
-A possible improvement would be to ...
-
-Another potential improvement could be to ...
-
-### You can use this file as a template for your writeup if you want to submit it as a markdown file. But feel free to use some other method and submit a pdf if you prefer.
 
 ---
 
