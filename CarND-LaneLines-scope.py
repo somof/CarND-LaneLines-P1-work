@@ -285,9 +285,8 @@ def process_image(image, weight=0.5):
     #                        cv2.addWeighted(left_line_image, 1.0, right_line_image, 1.0, 0.0), 1.0, 0.0)
 
     # step6: 2nd line-prediction
-    # devide lines into points
-    left_p0, left_p1   = regression_line(left_points,  [100, 451], [255, 200, 0], 8)
-    right_p0, right_p1 = regression_line(right_points, [550, 901], [200, 255, 0], 8)
+    left_p0, left_p1   = regression_line(left_points,  [100, 421], [255, 200, 0], 8)
+    right_p0, right_p1 = regression_line(right_points, [600, 901], [200, 255, 0], 8)
 
     global left_sp0, left_sp1, right_sp0, right_sp1
     if left_sp0[0] == 0 and left_sp0[1] == 0:
@@ -346,7 +345,7 @@ files = os.listdir("test_images/")
 files = glob.glob("test_images/*.jpg")
 #files = glob.glob("test_images/challenge*.jpg")
 #files = ['solidWhiteCurve.jpg', 'solidWhiteRight.jpg', 'solidYellowCurve.jpg', 'solidYellowCurve2.jpg', 'solidYellowLeft.jpg', 'whiteCarLaneSwitch.jpg', 'challenge_000001.jpg', 'challenge_000010.jpg', 'challenge_000020.jpg', 'solidWhiteRight_000001.jpg', 'solidWhiteRight_000010.jpg', 'solidWhiteRight_000019.jpg', 'solidYellowLeft_000001.jpg', 'solidYellowLeft_000010.jpg', 'solidYellowLeft_000020.jpg', 'solidYellowLeft_000030.jpg', 'solidYellowLeft_000040.jpg', 'solidYellowLeft_000050.jpg']
-files = ['solidYellowCurve2.jpg']
+#files = ['solidYellowCurve2.jpg']
 
 fig = plt.figure()
 ims = []
@@ -357,8 +356,8 @@ right_sp0 = [0, 0]
 right_sp1 = [0, 0]
 
 for file in files:
-    image = mpimg.imread('test_images/' + file)
-    # image = mpimg.imread(file)
+    # image = mpimg.imread('test_images/' + file)
+    image = mpimg.imread(file)
     im = plt.imshow(process_image(image, weight=0.5))
     ims.append([im])
 

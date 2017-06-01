@@ -27,12 +27,11 @@ def grayscale(img):
     but NOTE: to see the returned image as grayscale
     (assuming your grayscaled image is called 'gray')
     you should call plt.imshow(gray, cmap='gray')"""
-    
-    # RGB = cv2.split(img)
-    # return RGB[0]
-    # return cv2.addWeighted(RGB[0], 0.5, RGB[1], 0.5, 0.0)
 
-    return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    RGB = cv2.split(img)
+    return cv2.addWeighted(RGB[0], 0.5, RGB[1], 0.5, 0.0)
+
+    # return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     # Or use BGR2GRAY if you read an image with cv2.imread()
     # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -96,52 +95,30 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
                 cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
 
-def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
+def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap, angle_min, angle_max):
     """
     `img` should be the output of a Canny transform.
 
     Returns an image with hough lines drawn.
     """
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
-
-    left_points = []
-    right_points = []
+    points = []
     filtered_lines = []
     if lines is not None:
         for line in lines:
             for x1, y1, x2, y2 in line:
                 length = math.hypot(x2 - x1, y2 - y1)
                 theta = math.atan2((y2 - y1), (x2 - x1))
-                degree = math.degrees(theta)
-                if 5 < length and  0.05*math.pi < theta and theta <  0.45*math.pi:
+                if 5 < length and angle_min < theta and theta < angle_max:
                     filtered_lines.append([[x1, y1, x2, y2]])
-                    right_points.extend(devide_points(x1, y1, x2, y2))
-
-                if 5 < length and -0.45*math.pi < theta and theta < -0.05*math.pi:
-                    filtered_lines.append([[x1, y1, x2, y2]])
-                    left_points.extend(devide_points(x1, y1, x2, y2))
+                    points.extend(devide_points(x1, y1, x2, y2))
 
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     draw_lines(line_img, filtered_lines)
 
-    # draw angle scale
-    # radial = 200
-    # for unit in (0.1, 0.2, 0.3, 0.4):
-    #     rad = math.pi * unit
-    #     cx = 500
-    #     cy = 300
-    #     x = int(math.sin(-rad) * radial + cx)
-    #     y = int(math.cos(-rad) * radial + cy)
-    #     cv2.line(line_img, (cx, cy), (x, y), [255, 0, 255], 1)
-    #     cx = 550
-    #     x = int(math.sin(rad) * radial + cx)
-    #     y = int(math.cos(rad) * radial + cy)
-    #     cv2.line(line_img, (cx, cy), (x, y), [0, 255, 255], 1)
-
-    return line_img, left_points, right_points
+    return line_img, points
 
 # Python 3 has support for cool math symbols.
-
 
 def weighted_img(img, initial_img, α=0.8, β=1.0, λ=0.0):
     """
@@ -188,17 +165,11 @@ def devide_points(x1, y1, x2, y2):
     return lines
 
 
-def regression_line(img, points, hrange, color, thickness):
+def regression_line(points, hrange, color, thickness):
 
     # transform point list
     x = [d[0] for d in points]
     y = [d[1] for d in points]
-
-    # Linear regressor
-    # slope, intercept, r_value, _, _ = stats.linregress(x, y)
-    # # func = lambda x: x * slope + intercept
-    # func = lambda y: int((y - intercept) / slope)
-    # cv2.line(img, (func(500), 500), (func(300), 300), color, thickness)
 
     if 30 < len(x):
         # RANSAC regressor
@@ -213,9 +184,9 @@ def regression_line(img, points, hrange, color, thickness):
             model_ransac.fit(X[:, np.newaxis], y)
             line_x = np.arange(hrange[0], hrange[1], hrange[1] - hrange[0] - 1)
             line_y = model_ransac.predict(line_x[:, np.newaxis])
-            return img, (int(line_x[0]), int(line_y[0])), (int(line_x[1]), int(line_y[1]))
+            return (int(line_x[0]), int(line_y[0])), (int(line_x[1]), int(line_y[1]))
 
-    return img, [0, 0], [0, 0]
+    return [0, 0], [0, 0]
 
 
 def process_image(image, weight=0.5):
@@ -223,73 +194,55 @@ def process_image(image, weight=0.5):
     # TODO: put your pipeline here,
     # you should return the final output (image where lines are drawn on lanes)
 
+    # step1: normalize image size
     normalized_image = cv2.resize(image, (1000, 500))
-    # print(normalized_image.shape)
 
-    # Step0: Scope of line-detection
-    scope = np.array([[(100, 500),
-                       (430, 300),
-                       (570, 300),
-                       (970, 500),
-                       (800, 500),
-                       (520, 320),
-                       (490, 320),
-                       (250, 500)]],
-                       dtype=np.int32)
-    # scope = scope.reshape((-1,1,2))
-    # img = cv2.polylines(normalized_image, [scope], True, (0,255,255))
-    # return img
-    left_scope = np.array([[(100, 500),
-                       (430, 300),
-                       (570, 300),
-                       (970, 500),
-                       (800, 500),
-                       (520, 320),
-                       (490, 320),
-                       (250, 500)]],
-                       dtype=np.int32)
-    left_scope = scope.reshape((-1,1,2))
-    right_scope = np.array([[(100, 500),
-                       (430, 300),
-                       (570, 300),
-                       (970, 500),
-                       (800, 500),
-                       (520, 320),
-                       (490, 320),
-                       (250, 500)]],
-                       dtype=np.int32)
-    right_scope = scope.reshape((-1,1,2))
-    img = cv2.polylines(normalized_image, [left_scope], True, (0,255,255))
-    img = cv2.polylines(normalized_image, [right_scope], True, (0,255,255))
-    return img
-
-
-    # Step1: create GrayScale and normalize size
+    # Step2: create GrayScale
     gray = grayscale(normalized_image)
-    colored_gray = np.dstack((gray, gray, gray))
-    return colored_gray
 
-
-    # Step2: Edge Detection
+    # Step3: Edge Detection
     blur_gray = gaussian_blur(gray, 5)
     edges = canny(blur_gray, 100, 200)
 
-    # Step3: Mask
-    masked_image = region_of_interest(edges, scope)
+    # Step4: Mask
+    left_scope = np.array([[(50,  500),
+                            (440, 300),
+                            (490, 300),
+                            (490, 320),
+                            (250, 500)]],
+                            dtype=np.int32)
+    right_scope = np.array([[(800, 500),
+                             (530, 320),
+                             (530, 300),
+                             (570, 300),
+                             (970, 500)]],
+                             dtype=np.int32)
 
-    # Step4: Hough-transformation
-    line_image, left_points, right_points = hough_lines(masked_image,
-                                                        rho=10,            # 1 # distance resolution in pixels of the Hough grid
-                                                        theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
-                                                        threshold=30,      # minimum number of votes (intersections in Hough grid cell)
-                                                        min_line_len=3,    # 5 #minimum number of pixels making up a line
-                                                        max_line_gap=1)    # 1 # maximum gap in pixels between connectable line segments
+    left_masked_image = region_of_interest(edges, left_scope)
+    right_masked_image = region_of_interest(edges, right_scope)
 
-    # Step5: devide lines into points
-    line_image, left_p0, left_p1 = regression_line(line_image, left_points,  [100, 451], [255, 200, 0], 8)
-    line_image, right_p0, right_p1 = regression_line(line_image, right_points, [550, 901], [200, 255, 0], 8)
+    # Step5: Hough-transformation
+    left_line_image, left_points = hough_lines(left_masked_image,
+                                               rho=10,            # 1 # distance resolution in pixels of the Hough grid
+                                               theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
+                                               threshold=30,      # minimum number of votes (intersections in Hough grid cell)
+                                               min_line_len=3,    # 5 #minimum number of pixels making up a line
+                                               max_line_gap=1,    # 1 # maximum gap in pixels between connectable line segments
+                                               angle_min=-0.45*math.pi,
+                                               angle_max=-0.05*math.pi)
+    right_line_image, right_points = hough_lines(right_masked_image,
+                                                 rho=10,            # 1 # distance resolution in pixels of the Hough grid
+                                                 theta=np.pi / 120, # 180 # angular resolution in radians of the Hough grid
+                                                 threshold=30,      # minimum number of votes (intersections in Hough grid cell)
+                                                 min_line_len=3,    # 5 #minimum number of pixels making up a line
+                                                 max_line_gap=1,    # 1 # maximum gap in pixels between connectable line segments
+                                                 angle_min=0.05*math.pi,
+                                                 angle_max=0.45*math.pi)
 
-    # step6: Infinite Impulse Response filter
+    # step6: 2nd line-prediction
+    left_p0, left_p1   = regression_line(left_points,  [100, 421], [255, 200, 0], 8)
+    right_p0, right_p1 = regression_line(right_points, [600, 901], [200, 255, 0], 8)
+
     global left_sp0, left_sp1, right_sp0, right_sp1
     if left_sp0[0] == 0 and left_sp0[1] == 0:
         left_sp0 = list(left_p0)
@@ -312,21 +265,13 @@ def process_image(image, weight=0.5):
         right_sp1[0] = weight * right_sp1[0] + (1.0 - weight) * right_p1[0]
         right_sp1[1] = weight * right_sp1[1] + (1.0 - weight) * right_p1[1]
 
+    line_image = np.zeros_like(normalized_image)
     if 0 < weight:
         cv2.line(line_image, (int(left_sp0[0]), int(left_sp0[1])), (int(left_sp1[0]), int(left_sp1[1])), [200, 100, 150], 20)
         cv2.line(line_image, (int(right_sp0[0]), int(right_sp0[1])), (int(right_sp1[0]), int(right_sp1[1])), [200, 100, 150], 20)
 
-
-    # Step7: Overlay image
-
-    # Create a "color" binary image to combine with line image
-    # color_edges = np.dstack((edges, edges, edges))
-    # result = weighted_img(line_image, color_edges, α=0.8, β=1., λ=0.)
-    # result = weighted_img(line_image, image, α=0.8, β=1., λ=0.)
+    #
     result = weighted_img(line_image, normalized_image, α=0.8, β=1., λ=0.)
-    # colored_gray = np.dstack((blur_gray, blur_gray, blur_gray))
-    # result = weighted_img(line_image, colored_gray, α=0.8, β=1., λ=0.)
-
     return result
 
 
@@ -345,28 +290,28 @@ def process_image(image, weight=0.5):
 # Test Images
 # Build your pipeline to work on the images in the directory "test_images"
 # You should make sure your pipeline works well on these images before you try the videos.
-files = os.listdir("test_images/")
-files = glob.glob("test_images/*.jpg")
-files = glob.glob("test_images/challenge*.jpg")
-
-fig = plt.figure()
-ims = []
-
-left_sp0 = [0, 0]
-left_sp1 = [0, 0]
-right_sp0 = [0, 0]
-right_sp1 = [0, 0]
-
-for file in files:
-    # image = mpimg.imread('test_images/' + file)
-    image = mpimg.imread(file)
-    im = plt.imshow(process_image(image, weight=0.5))
-    ims.append([im])
-
-ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True, repeat_delay=0)
-# ani.save('dynamic_images.mp4')
-plt.show()
-exit(0)
+## files = os.listdir("test_images/")
+## files = glob.glob("test_images/challenge*.jpg")
+## files = glob.glob("test_images/*.jpg")
+## 
+## fig = plt.figure()
+## ims = []
+## 
+## left_sp0 = [0, 0]
+## left_sp1 = [0, 0]
+## right_sp0 = [0, 0]
+## right_sp1 = [0, 0]
+## 
+## for file in files:
+##     # image = mpimg.imread('test_images/' + file)
+##     image = mpimg.imread(file)
+##     im = plt.imshow(process_image(image, weight=0.5))
+##     ims.append([im])
+## 
+## ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True, repeat_delay=0)
+## # ani.save('dynamic_images.mp4')
+## plt.show()
+#exit(0)
 
 
 
