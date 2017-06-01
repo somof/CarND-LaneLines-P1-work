@@ -34,11 +34,9 @@ As the first step, this pipeline unifies image-size as 1000x500.
 
 Target lines to detect are colored with White or Yellow in images.
 
-Blue-plane doesn't affect the line-detection algorithm.
-So grayscale is made from average of Red-plane and Green-plane.
+Blue-plane doesn't affect the line-detection algorithm, So grayscale is made from average of Red and Green-plane.
 
 ![(R+G)/2 image][RGplane]
-![COLOR_RGB2GRAY][RGBplane]
 
 ### Step3: edge detection
 
@@ -54,13 +52,13 @@ Mask shapes are defined as pentagon based on positions where lines appear in 3 v
 
 ![scope in image][scope]
 
-![MaskedEdgeImage]][MaskedEdge]
+![MaskedEdgeImage][MaskedEdge]
 
 ### Step5: Hough-transformation
 
 Hough-transformation is executed twice for left and right line.
 
-![HoughImage]][Hough]
+![HoughImage][Hough]
 
 ### Step6: 2nd line-prediction
 
@@ -72,8 +70,8 @@ In this step, RANSAC algorithm, has a strong stability toward noisy input, is ap
 And plus, a IIR filter interpolates missing frame.
 This IIR also reinforce stability of the result of the line-prediction.
 
-![PredictedLines]][PredictedLines]
-![PredictedLinesImage]][PredictedLinesImage]
+![PredictedLines][PredictedLines]
+![PredictedLinesImage][PredictedLinesImage]
 
 
 ## 2. Identify potential shortcomings with your current pipeline
